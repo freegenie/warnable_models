@@ -1,4 +1,5 @@
 # WarnableModels
+require 'warnings'
 
 module Exelab
 
@@ -18,17 +19,16 @@ module Exelab
 
     module InstanceMethods
       def warnings
-        @_warnings ||= Hash.new 
+        @warnings ||= Exelab::WarnableModels::Warnings.new
       end
       
-      def warn(k,v)
-        @_warnings ||= Hash.new 
-        @_warnings[k] = v
-      end
+      # def warn(k,v)
+      #   @_warnings[k] = v
+      # end
       
-      def has_warnings? 
-        warnings.size > 0 
-      end
+      # def has_warnings? 
+      #   warnings.size > 0 
+      # end
 
     end
 
