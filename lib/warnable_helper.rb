@@ -19,7 +19,8 @@ module Exelab
           end
         end
 
-        header_message = "warning header message "
+        header_message = I18n.translate('warnable_models.header_message')
+        paragraph_message = I18n.translate('warnable_models.paragraph_message')
 
         warning_messages = objects.map {|object|
           object.warnings.map {|k,v|
@@ -28,9 +29,9 @@ module Exelab
         }
 
         warnings_html = content_tag(options[:header_tag] || :h2, header_message)
-        if not ( (options.has_key? :skip_intro) && options[:skip_intro])
-          warnings_html << content_tag(:p, 'warnings message')
-        end
+        # if not ( (options.has_key? :skip_intro) && options[:skip_intro])
+        #   warnings_html << content_tag(:p, paragraph_message)
+        # end
         warnings_html << content_tag(:ul, warning_messages)
         content_tag(:div, warnings_html, html)
       else

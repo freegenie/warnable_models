@@ -39,7 +39,6 @@ module Exelab
         @warnings.each_key { |attr| @warnings[attr].each { |msg| yield attr, msg } }
       end
 
-
       def empty?
         @warnings.empty?
       end
