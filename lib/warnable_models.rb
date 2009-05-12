@@ -1,44 +1,53 @@
 # WarnableModels
-require 'warnings'
+require File.dirname(__FILE__) + '/warnings'
 
 module Exelab
 
   module WarnableModels
 
-    def self.included(base)
-      base.send :extend, ClassMethods
-    end
-
     module ClassMethods
-
       def acts_as_warnable
         # attr_accessor :warnings
         send :include, InstanceMethods
-        after_save :run_warnings
-        before_save :clear_warnings
+        after_save :load_warnings          
       end
     end
 
     module InstanceMethods
+      
       def warnings
-        @warnings ||= run_run_warnings
+        @warnings ||= load_warnings
       end
 
       def clear_warnings
-        @warnings.clear if @warnings
+        @warnings = Exelab::WarnableModels::Warnings.new
       end
 
-      def run_run_warnings
-        @warnings ||= Exelab::WarnableModels::Warnings.new
+      def load_warnings
+        # ---------------------
+        # initialize warning object
+        # ---------------------
+        clear_warnings        
+        raise "warnings should be empty"  if !@warnings.empty?        
         begin
-          self.run_warnings
+          if !self.new_record?
+            self.reload
+          end
         rescue ::NoMethodError => e
           raise e, "You must implement a 'run_warnings' method on your model"
+        rescue => e
+          raise e
         end
+        raise "warnings should be empty" if !@warnings.empty?
+        self.run_warnings
         @warnings
       end
     end
 
+    def self.included(receiver)
+      receiver.extend         ClassMethods
+      receiver.send :include, InstanceMethods
+    end
   end
 
 end
