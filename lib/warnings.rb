@@ -1,4 +1,5 @@
-module Exelab
+module Freegenie
+  
   module WarnableModels
     # Inspired by ActiveRecord::Errors
     class Warnings
@@ -71,6 +72,10 @@ module Exelab
         full_messages
       end
 
+      def to_yaml 
+        @warnings.to_yaml 
+      end
+      
       def to_xml(options={})
         options[:root] ||= "warnings"
         options[:indent] ||= 2

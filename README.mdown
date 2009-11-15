@@ -1,0 +1,155 @@
+WarnableModels
+==============================
+
+What's this? 
+-------------
+
+Warnable models adds warning functionality to ActiveRecord models, in a similar way as ActiveRecord::Errors does.
+It lets you handle non-blocking warning logic inside the model itself.
+
+WarnableModels is supposed to be run as a Rails plugin. 
+
+Installation
+------------
+
+    script/plugin install git@github.com:freegenie/warnable_models.git
+
+
+Configuration
+-------------
+
+All you need to start playing with warnings is this line in your model:
+
+    acts_as_warnable
+
+And a **run_warnings** method, which is where you put the logic behind you model's warnings. 
+
+It should look like this: 
+
+    protected 
+    def run_warnings 
+      if self.balance < 0 
+        warnings.add(:balance, BALANCE_WARNING)
+      end
+    end
+
+
+Optionally you can specify two parameters:
+
+ * store_count: 
+    a database field where to save the warnings count.
+    
+ * store_yaml:
+   a database field where to save warnings' yaml serialization.
+
+How it works
+---------------------
+
+It's a before\_save hook which executes your run\_warnings method . 
+
+The first time you call .warnings on your model, the run\_warnings method gets evaluated. If you don't call it, it gets evaluated on _before\_save_ anyway. 
+
+If you ever need to cleanup warnings during your program execution, just call the clear\_warnings! method. 
+
+
+Examples
+--------
+
+Tests are the clearest source of example. Given the following models:
+
+    class Book < ActiveRecord::Base  
+      include Freegenie::WarnableModels  
+      acts_as_warnable    
+      protected  
+      def run_warnings        
+        if self.description.nil? || self.description.size < 10 
+          warnings.add(:description, "Description is probably too short.")
+        end
+        if self.author.blank? 
+          warnings.add(:author, "Did you forget the author?")
+        end
+      end
+  
+    end
+
+    class Account < ActiveRecord::Base 
+      BALANCE_WARNING = "Should warn the customer?"
+      include Freegenie::WarnableModels
+      acts_as_warnable :store_count => :warnings_count, :store_yaml => :verbose_warnings
+      protected 
+      def run_warnings 
+        if self.balance < 0 
+          warnings.add(:balance, BALANCE_WARNING)
+        end
+      end  
+    end
+
+
+You get: 
+
+    # irb 
+    >> require 'test/warnable_models_test' 
+    ==  CreateTestTable: reverting ================================================
+    -- drop_table(:books)
+       -> 0.0058s
+    -- drop_table(:accounts)
+       -> 0.0018s
+    ==  CreateTestTable: reverted (0.0079s) =======================================
+
+    ==  CreateTestTable: migrating ================================================
+    -- create_table("books", {:force=>true})
+       -> 0.0291s
+    -- create_table("accounts", {:force=>true})
+       -> 0.0153s
+    ==  CreateTestTable: migrated (0.0504s) =======================================
+
+    => true
+    >> book = Book.new 
+    => #<Book id: nil, title: nil, author: nil, description: nil, warnings: nil>
+    >> book.warnings 
+    => #<Freegenie::WarnableModels::Warnings:0x102085298 @warnings={"author"=>["Did you forget the author?"], "description"=>["Description is probably too short."]}>
+    >> book.save!
+    => true
+    >> book.warnings
+    => #<Freegenie::WarnableModels::Warnings:0x102071dd8 @warnings={"author"=>["Did you forget the author?"], "description"=>["Description is probably too short."]}>
+    >> book.author = "E.A. Poe" 
+    => "E.A. Poe"
+    >> book.title = "The black cat" 
+    => "The black cat"
+    >> book.clear_warnings! 
+    => nil
+    >> book.warnings
+    => #<Freegenie::WarnableModels::Warnings:0x101f6d4f0 @warnings={"description"=>["Description is probably too short."]}>
+    >> book.save!
+    => true
+    >> book.warnings
+    => #<Freegenie::WarnableModels::Warnings:0x101f652f0 @warnings={"description"=>["Description is probably too short."]}>
+    >> book.description = "The first horror book I've ever read!"
+    => "The first horror book I've ever read!"
+    >> book.save!
+    => true
+    >> book.warnings
+    => #<Freegenie::WarnableModels::Warnings:0x101f52880 @warnings={}>
+
+    => Account.new 
+    => #<Account id: nil, balance: nil, warnings_count: nil, verbose_warnings: nil>
+    >> account.warnings 
+    => #<Freegenie::WarnableModels::Warnings:0x101eeccb0 @warnings={}>
+    >> account.balance = -10.0
+    => -10.0
+    >> account.warnings 
+    => #<Freegenie::WarnableModels::Warnings:0x101eeccb0 @warnings={}>
+    >> account.save!
+    >> account.balance = -10.0
+    => -10.0
+    >> account.save 
+    => true
+    >> account.verbose_warnings
+    => "--- \nbalance: \n- Should warn the customer?\n"
+    >> account.warnings_count 
+    => 1
+    >> 
+    
+And so on... ..
+
+Copyright (c) 2008 freegenie, released under the MIT license

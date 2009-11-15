@@ -1,50 +1,66 @@
 # WarnableModels
 require File.dirname(__FILE__) + '/warnings'
 
-module Exelab
+module Freegenie
 
   module WarnableModels
 
     module ClassMethods
-      def acts_as_warnable
-        # attr_accessor :warnings
-        send :include, InstanceMethods
-        after_save :load_warnings          
+      
+      def acts_as_warnable(options={})
+        class_eval("@@warnable_options = #{options.inspect}")        
+        send :include, InstanceMethods        
+        before_save :load_warnings
+        
+      end
+      
+      def warnable_options
+        class_eval("@@warnable_options")
       end
     end
 
     module InstanceMethods
+                  
+      def warnings        
+        @warnings ||= load_warnings        
+      end
       
-      def warnings
-        @warnings ||= load_warnings
+      def clear_warnings! 
+        @warnings = nil
       end
-
-      def clear_warnings
-        @warnings = Exelab::WarnableModels::Warnings.new
-      end
-
+      protected 
+      
       def load_warnings
         # ---------------------
         # initialize warning object
-        # ---------------------
-        clear_warnings        
+        # ---------------------        
+        @warnings = Freegenie::WarnableModels::Warnings.new    
+                  
         raise "warnings should be empty"  if !@warnings.empty?        
-        begin
-          if !self.new_record?
-            self.reload
-          end
-        rescue ::NoMethodError => e
-          raise e, "You must implement a 'run_warnings' method on your model"
-        rescue => e
-          raise e
+        
+        if !self.methods.include? 'run_warnings'
+          raise "You must implement a 'run_warnings' method on your model."
         end
-        raise "warnings should be empty" if !@warnings.empty?
+        
         self.run_warnings
+        
+        if !self.class.warnable_options[:store_count].nil? 
+          instance_eval("self.#{self.class.warnable_options[:store_count]} = #{@warnings.size}")
+        end
+        
+        if !self.class.warnable_options[:store_yaml].nil? 
+          if @warnings.size > 0 
+            instance_eval("self.#{self.class.warnable_options[:store_yaml]} = \"#{@warnings.to_yaml }\" ")
+          else
+            instance_eval("self.#{self.class.warnable_options[:store_yaml]} = nil ")
+          end
+        end      
+          
         @warnings
       end
     end
 
-    def self.included(receiver)
+    def self.included(receiver)      
       receiver.extend         ClassMethods
       receiver.send :include, InstanceMethods
     end

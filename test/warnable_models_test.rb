@@ -3,85 +3,80 @@ require 'test/unit'
 require File.dirname(__FILE__) + '/../lib/warnable_models'
 require 'activerecord'
 require 'sqlite3'
+require 'redgreen'
+require 'shoulda'
 
-# connect to database.  This will create one if it doesn't exist
-MY_DB_NAME  = ".my.db"
-MY_DB       = SQLite3::Database.new(MY_DB_NAME)
-
-# get active record set up
-ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => MY_DB_NAME)
-
-class CreateTestTable < ActiveRecord::Migration
-  def self.up
-    create_table 'names', :force => true do |t|
-      t.string :first_name
-      t.string :second_name, :limit => 20
-    end
-  end
-  def self.down
-    drop_table :names
-  end
-end
-
-CreateTestTable.migrate(:down)
-CreateTestTable.migrate(:up)
-
-class Name < ActiveRecord::Base
-  include Exelab::WarnableModels
-  acts_as_warnable
-  protected
-  def run_warnings
-    if self.first_name.size < 6
-      warnings.add(:first_name, "First name too short")
-    end
-    if self.second_name.size > 8
-      warnings.add(:second_name, "Second name too long")
-    end
-  end
-end
+require 'test/setup'
 
 class WarnableModelsTest < Test::Unit::TestCase
-  # Replace this with your real tests.
-  def test_should_store_warning
-    m = Name.new(:first_name => "Mario", :second_name => "Rossi")
-    assert m.save
-    assert m.warnings.on(:first_name)
-    assert !m.warnings.on(:second_name)
-    m.save
-    assert m.warnings.size == 1, m.warnings.full_messages.inspect
-    assert m.warnings.size == 1, m.warnings.full_messages.inspect
-  end
+  
+  def setup
+    Account.delete_all 
+    Book.delete_all 
+  end    
 
-  def test_should_not_increment_warnings_on_reload
-    m = Name.new(:first_name => "Mario", :second_name => "Rossi")
+  should "store warnings" do 
+    m = Book.new(:title => "Warnable models")
     assert m.save
-    assert m.warnings.on(:first_name)
-    assert !m.warnings.on(:second_name)
-    assert m.warnings.size == 1
-    # m.run_warnings
-    assert m.warnings.size == 1, m.warnings.full_messages
-  end
-
-  def test_should_not_call_run_warnings 
-    m = Name.new(:first_name => "Mario", :second_name => "Rossi")    
-    assert m.save 
-    begin       
-      m.run_warnings
-    rescue NoMethodError => e
-      assert true
-    rescue => e 
-      raise e 
-    end
+    assert m.warnings.on(:author)
+    assert m.warnings.on(:description)
+    assert m.warnings.size == 2, m.warnings.full_messages.inspect
   end
   
-  # def test_multiple_warnings
-  #   m = Name.new
-  #   warning1 = "this is a test warning."
-  #   warning2 = "this is a second test warning."
-  #   m.warnings.add(:test, warning1)
-  #   m.warnings.add(:test, warning2)
-  #   assert m.warnings.size > 0
-  #   assert m.warnings.on(:test) == [warning1, warning2]
-  # end
-
+  should "not increment warnings count on warnings reload" do 
+    m = Book.new(:title => "Warnable models", :author => "John Doe")
+    assert m.save
+    assert !m.warnings.on(:title)
+    assert m.warnings.on(:description)
+    m.warnings # this can be called multiple times
+    assert m.warnings.size == 1
+    assert m.warnings.size == 1, m.warnings.full_messages
+  end
+  
+  should "store multiple warnings for each column" do         
+    m = Book.new
+    warning1 = "this is a test warning."
+    warning2 = "this is a second test warning."
+    m.warnings.add(:test, warning1)
+    m.warnings.add(:test, warning2)
+    assert m.warnings.size > 0
+    assert m.warnings.on(:test) == [warning1, warning2]
+  end
+  
+  should "store numeric field into database for warnings" do     
+    account = Account.new(:balance => -10.0)
+    assert account.warnings.size > 0         
+    assert account.save        
+    account = Account.find(:first)
+    assert account.warnings_count == 1  
+  end  
+  
+  should "store warnings as yaml into database" do     
+    account = Account.new(:balance => -10.0)
+    assert account.save 
+    assert account.warnings.size > 0        
+    account = Account.find(:first)
+    assert YAML::load(account.verbose_warnings)["balance"].include? Account::BALANCE_WARNING
+  end  
+  
+  should "free warnings database fields when warnings are gone" do 
+    account = Account.new(:balance => -10.0)
+    assert account.save 
+    assert account.warnings.size > 0        
+    account.balance = 10.0 
+    account.save 
+    assert account.warnings_count == 0 
+    assert account.verbose_warnings.blank?, account.verbose_warnings.inspect
+  end
+  
+  should "eval warnings on a live record" do 
+    account = Account.new(:balance => -10.0)
+    assert account.warnings.size > 0        
+    account.balance = 10.0 
+    account.clear_warnings!
+    assert account.warnings.size == 0
+    assert account.warnings_count == 0, account.warnings_count.inspect
+    assert account.verbose_warnings.blank?
+  end
+  
 end

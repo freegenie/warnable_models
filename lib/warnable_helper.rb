@@ -1,4 +1,4 @@
-module Exelab
+module Freegenie
   
   module WarnableHelper 
     
